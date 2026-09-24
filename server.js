@@ -7,18 +7,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Konfigurasi Kunci Akses dari Environment Variables Vercel
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_OWNER = process.env.GITHUB_OWNER;
+const GITHUB_OWNER = process.env.GITHUB_OWNER || 'masirfan2206-web';
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
-// Penyimpanan Bug Sementara (In-Memory)
 let bugLogs = [];
 
-// Fungsi Handler untuk Menerima Laporan Bug
 async function handleBugReport(req, res) {
   const { app_id, error_message, file, line, column, stack_trace, timestamp } = req.body;
   
@@ -37,25 +34,23 @@ async function handleBugReport(req, res) {
   };
 
   bugLogs.unshift(bugItem);
-  console.log(`[BUG DETECTED] ${error_message} at line ${line}`);
+  console.log(`[BUG DETECTED] ${error_message}`);
 
-  // Analisis otomatis dengan Gemini AI di background
+  // Jalankan analisis AI
   analyzeBugWithAI(bugItem);
 
   res.status(200).json({ status: 'success', message: 'Bug reported successfully', bug_id: bugItem.id });
 }
 
-// 1. Endpoint Menerima Bug (Mendukung /api/bugs dan /api/report-bug)
 app.post('/api/bugs', handleBugReport);
 app.post('/api/report-bug', handleBugReport);
 
-// 2. Fungsi Analisis Bug menggunakan Gemini AI
 async function analyzeBugWithAI(bug) {
   try {
-    // Ambil isi kode asli dari GitHub (Web-Uji-Coba/index.html)
+    // Ambil isi kode asli dari repo web-uji-coba (huruf kecil semua)
     const { data: fileData } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
-      repo: 'Web-Uji-Coba',
+      repo: 'web-uji-coba',
       path: 'index.html',
     });
 
@@ -86,40 +81,46 @@ async function analyzeBugWithAI(bug) {
     `;
 
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text().replace(/```json|```/g, '').trim();
+    let responseText = result.response.text().trim();
+    
+    // Pembersihan format markdown dari respon AI jika ada
+    if (responseText.startsWith('```json')) {
+      responseText = responseText.replace(/^```json/, '').replace(/```$/, '').trim();
+    } else if (responseText.startsWith('```')) {
+      responseText = responseText.replace(/^```/, '').replace(/```$/, '').trim();
+    }
+
     const aiResult = JSON.parse(responseText);
 
     bug.status = 'READY_FOR_REVIEW';
     bug.ai_suggestion = aiResult.explanation;
     bug.fixed_code = aiResult.fixed_code;
-    bug.sha = fileData.sha; // Simpan SHA file untuk update ke GitHub nanti
+    bug.sha = fileData.sha;
 
-    console.log(`[AI SUCCESS] Analysis completed for Bug #${bug.id}`);
+    console.log(`[AI SUCCESS] Bug #${bug.id} berhasil dianalisis!`);
   } catch (error) {
-    console.error('[AI ERROR]', error);
+    console.error('[AI ERROR DETAILS]:', error);
     bug.status = 'ANALYSIS_FAILED';
+    bug.ai_suggestion = `Gagal diproses AI: ${error.message}`;
   }
 }
 
-// 3. Endpoint Membaca Daftar Bug
 app.get('/api/bugs', (req, res) => {
   res.json(bugLogs);
 });
 
-// 4. Endpoint Eksekusi Perbaikan ke GitHub (Manual Approval)
 app.post('/api/apply-fix', async (req, res) => {
   const { bug_id } = req.body;
   const bug = bugLogs.find(b => b.id === bug_id);
 
   if (!bug || !bug.fixed_code) {
-    return res.status(400).json({ error: 'Bug data or fix code not found' });
+    return res.status(400).json({ error: 'Data perbaikan tidak ditemukan' });
   }
 
   try {
-    // Commit kode baru ke GitHub
     await octokit.repos.createOrUpdateFileContents({
       owner: GITHUB_OWNER,
-      repo: 'Web-Uji-Coba',
+      repo: 'web-uji-coba',
       path: 'index.html',
       message: `fix(autofix): auto-patched bug ${bug.error_message} via Bug Tracker Dashboard`,
       content: Buffer.from(bug.fixed_code).toString('base64'),
