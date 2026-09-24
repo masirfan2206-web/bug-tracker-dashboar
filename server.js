@@ -1,16 +1,16 @@
-const express = require('express');
-const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { Octokit } = require('@octokit/rest');
+import express from 'express';
+import cors from 'cors';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Octokit } from '@octokit/rest';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Konfigurasi Kunci Akses (Nanti diisi di environment variables)
+// Konfigurasi Kunci Akses dari Environment Variables Vercel
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_OWNER = process.env.GITHUB_OWNER; // Username GitHub kamu
+const GITHUB_OWNER = process.env.GITHUB_OWNER;
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
@@ -18,19 +18,19 @@ const octokit = new Octokit({ auth: GITHUB_TOKEN });
 // Penyimpanan Bug Sementara (In-Memory)
 let bugLogs = [];
 
-// 1. Endpoint Menerima Bug dari Client SDK
-app.post('/api/report-bug', async (req, res) => {
+// Fungsi Handler untuk Menerima Laporan Bug
+async function handleBugReport(req, res) {
   const { app_id, error_message, file, line, column, stack_trace, timestamp } = req.body;
   
   const bugItem = {
     id: Date.now(),
-    app_id,
+    app_id: app_id || "web-uji-coba",
     error_message,
     file,
     line,
     column,
     stack_trace,
-    timestamp,
+    timestamp: timestamp || new Date().toISOString(),
     status: 'PENDING_ANALYSIS',
     ai_suggestion: null,
     fixed_code: null
@@ -39,16 +39,20 @@ app.post('/api/report-bug', async (req, res) => {
   bugLogs.unshift(bugItem);
   console.log(`[BUG DETECTED] ${error_message} at line ${line}`);
 
-  // Langsung proses dengan Gemini AI di background
+  // Analisis otomatis dengan Gemini AI di background
   analyzeBugWithAI(bugItem);
 
   res.status(200).json({ status: 'success', message: 'Bug reported successfully', bug_id: bugItem.id });
-});
+}
+
+// 1. Endpoint Menerima Bug (Mendukung /api/bugs dan /api/report-bug)
+app.post('/api/bugs', handleBugReport);
+app.post('/api/report-bug', handleBugReport);
 
 // 2. Fungsi Analisis Bug menggunakan Gemini AI
 async function analyzeBugWithAI(bug) {
   try {
-    // Ambil isi kode asli dari GitHub (web-uji-coba/index.html)
+    // Ambil isi kode asli dari GitHub (Web-Uji-Coba/index.html)
     const { data: fileData } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: 'Web-Uji-Coba',
