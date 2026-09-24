@@ -55,8 +55,8 @@ async function analyzeBugWithAI(bug) {
 
     const originalCode = Buffer.from(fileData.content, 'base64').toString('utf-8');
 
-    // Menggunakan nama model yang didukung SDK
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    // Menggunakan nama model gemini-2.5-flash yang aktif dan didukung
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `
     Kamu adalah Senior Software Engineer. Terjadi bug pada aplikasi web berikut:
     - Error Message: ${bug.error_message}
