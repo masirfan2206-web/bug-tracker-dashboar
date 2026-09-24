@@ -24,9 +24,12 @@
   <div id="bug-list">Memuat laporan bug...</div>
 
   <script>
+    // URL Server Vercel Backend
+    const API_URL = "https://bug-tracker-dashboar.vercel.app";
+
     async function loadBugs() {
       try {
-        const res = await fetch('/api/bugs');
+        const res = await fetch(`${API_URL}/api/bugs`);
         const bugs = await res.json();
         
         const container = document.getElementById('bug-list');
@@ -59,7 +62,7 @@
     async function applyFix(bugId) {
       if (!confirm("Apakah Anda yakin ingin melakukan commit otomatis untuk perbaikan ini?")) return;
       
-      const res = await fetch('/api/apply-fix', {
+      const res = await fetch(`${API_URL}/api/apply-fix`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bug_id: bugId })
