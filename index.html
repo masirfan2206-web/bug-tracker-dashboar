@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pusat Kontrol Bug Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; background: #0d1117; color: #c9d1d9; }
+    h1 { color: #58a6ff; }
+    .bug-card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-bottom: 20px; }
+    .status-pending { color: #d29922; font-weight: bold; }
+    .status-ready { color: #58a6ff; font-weight: bold; }
+    .status-fixed { color: #3fb950; font-weight: bold; }
+    pre { background: #0d1117; padding: 10px; border-radius: 5px; overflow-x: auto; border: 1px solid #30363d; }
+    button { background: #238636; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #2ea043; }
+  </style>
+</head>
+<body>
+
+  <h1>🛡️ Pusat Kontrol & AI Auto-Fix</h1>
+  <p>Daftar laporan bug yang masuk dari web terhubung:</p>
+
+  <div id="bug-list">Memuat laporan bug...</div>
+
+  <script>
+    async function loadBugs() {
+      try {
+        const res = await fetch('/api/bugs');
+        const bugs = await res.json();
+        
+        const container = document.getElementById('bug-list');
+        if (bugs.length === 0) {
+          container.innerHTML = '<p>Belum ada bug yang dilaporkan.</p>';
+          return;
+        }
+
+        container.innerHTML = bugs.map(b => `
+          <div class="bug-card">
+            <h3>App: ${b.app_id} | <span class="status-${b.status.toLowerCase()}">${b.status}</span></h3>
+            <p><strong>Error:</strong> ${b.error_message}</p>
+            <p><strong>Lokasi:</strong> Baris ${b.line}:${b.column} (${b.file})</p>
+            
+            ${b.ai_suggestion ? `
+              <h4>💡 Analisis AI Gemini:</h4>
+              <p>${b.ai_suggestion}</p>
+            ` : '<p><em>AI sedang menganalisis bug...</em></p>'}
+
+            ${b.status === 'READY_FOR_REVIEW' ? `
+              <button onclick="applyFix(${b.id})">✅ Setujui & Fix Bug ke GitHub</button>
+            ` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        document.getElementById('bug-list').innerText = 'Gagal mengambil data bug dari server.';
+      }
+    }
+
+    async function applyFix(bugId) {
+      if (!confirm("Apakah Anda yakin ingin melakukan commit otomatis untuk perbaikan ini?")) return;
+      
+      const res = await fetch('/api/apply-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bug_id: bugId })
+      });
+      const data = await res.json();
+      alert(data.message || data.error);
+      loadBugs();
+    }
+
+    // Refresh data setiap 5 detik
+    setInterval(loadBugs, 5000);
+    loadBugs();
+  </script>
+</body>
+</html>
