@@ -47,7 +47,6 @@ app.post('/api/report-bug', handleBugReport);
 
 async function analyzeBugWithAI(bug) {
   try {
-    // Ambil isi kode asli dari repo web-uji-coba (huruf kecil semua)
     const { data: fileData } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
       repo: 'web-uji-coba',
@@ -56,7 +55,8 @@ async function analyzeBugWithAI(bug) {
 
     const originalCode = Buffer.from(fileData.content, 'base64').toString('utf-8');
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Menggunakan nama model yang didukung SDK
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     const prompt = `
     Kamu adalah Senior Software Engineer. Terjadi bug pada aplikasi web berikut:
     - Error Message: ${bug.error_message}
@@ -83,7 +83,6 @@ async function analyzeBugWithAI(bug) {
     const result = await model.generateContent(prompt);
     let responseText = result.response.text().trim();
     
-    // Pembersihan format markdown dari respon AI jika ada
     if (responseText.startsWith('```json')) {
       responseText = responseText.replace(/^```json/, '').replace(/```$/, '').trim();
     } else if (responseText.startsWith('```')) {
