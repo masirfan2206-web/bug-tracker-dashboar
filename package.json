@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Server Pusat Kontrol Bug Tracker & AI Auto-Fix",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
